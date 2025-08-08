@@ -267,25 +267,27 @@ class MyPlugin(Star):
         else:
             yield event.plain_result("邀请码链接设置失败")
 
-    @filter.command("查询关键词")
-    async def query_keyword(self, event: AstrMessageEvent, keyword: str):
-        """查询关键词"""
-        if event.is_private_chat():
-            yield event.plain_result("私聊模式下不支持查询关键词")
+@filter.command("查询关键词")
+async def query_keyword(self, event: AstrMessageEvent):
+    """查询当前群组的所有关键词"""
+    if event.is_private_chat():
+        yield event.plain_result("私聊模式下不支持查询关键词")
+        return
+    try:
+        group_id = event.get_group_id()
+        result = self.QASystem.get_qa_by_group(group_id)
+        if not result:
+            yield event.plain_result("当前群组没有设置任何关键词")
             return
-        try:
-            group_id = event.get_group_id()
-            result = self.QASystem.get_qa(group_id, keyword)
-            message = f"关键词: {keyword}\n"
-            if result:
-                for i, item in enumerate(result):
-                    message += f"回复{i + 1}: {item['content']}\n"
-            else:
-                message += "没有找到相关回复"
-            yield event.plain_result(message)
-        except Exception as e:
-            logger.error(f"查询关键词失败: {e}")
-            yield event.plain_result("查询关键词失败")
+        message = "当前群组的关键词及其回复如下：\n"
+        for keyword, replies in result.items():
+            message += f"关键词: {keyword}\n"
+            for i, item in enumerate(replies):
+                message += f"  回复{i + 1}: {item['content']}\n"
+        yield event.plain_result(message)
+    except Exception as e:
+        logger.error(f"查询关键词失败: {e}")
+        yield event.plain_result("查询关键词失败")
 
 @filter.event_message_type(filter.EventMessageType.ALL)
 async def on_all_message(self, event: AstrMessageEvent):
