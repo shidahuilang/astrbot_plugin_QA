@@ -287,37 +287,37 @@ class MyPlugin(Star):
             logger.error(f"查询关键词失败: {e}")
             yield event.plain_result("查询关键词失败")
 
-    @filter.event_message_type(filter.EventMessageType.ALL)
-    async def on_all_message(self, event: AstrMessageEvent):
-        """接收所有消息事件"""
-        # logger.info(event.message_obj)
-        if event.is_private_chat():
+@filter.event_message_type(filter.EventMessageType.ALL)
+async def on_all_message(self, event: AstrMessageEvent):
+    """接收所有消息事件"""
+    # logger.info(event.message_obj)
+    if event.is_private_chat():
+        return
+    message = event.message_str
+    if message.startswith('/'):
+        # 忽略以斜杠开头的命令消息
+        logger.info(f"Ignoring command message: {message}")
+        return
+    group_id = event.get_group_id()
+    result = self.QASystem.get_qa_by_group(group_id)
+    for keyword in result:
+        if check_is_match(keyword, message):
+            reply = result[keyword]
+            if isinstance(reply, list):
+                for item in reply:
+                    if item['type'] == 'TEXT':
+                        yield event.plain_result(item['content'])
+                    if item['type'] == 'IMAGE_URL':
+                        yield event.image_result(item['content'])
+    
+    # 只有当用户输入“邀请码”时才触发获取邀请码的操作
+    if message.strip() == "邀请码":
+        url = self.QASystem.get_group_invitation_url(group_id)
+        if not url:
+            yield event.plain_result("当前群未设置邀请码链接")
             return
-        message = event.message_str
-        if message.startswith('/'):
-            # 忽略以斜杠开头的命令消息
-            logger.info(f"Ignoring command message: {message}")
-            return
-        group_id = event.get_group_id()
-        result = self.QASystem.get_qa_by_group(group_id)
-        for keyword in result:
-            if check_is_match(keyword, message):
-                reply = result[keyword]
-                if isinstance(reply, list):
-                    for item in reply:
-                        if item['type'] == 'TEXT':
-                            yield event.plain_result(item['content'])
-                        if item['type'] == 'IMAGE_URL':
-                            yield event.image_result(item['content'])
-        
-        # 新增邀请码关键词处理
-        if check_is_match("邀请码", message):
-            url = self.QASystem.get_group_invitation_url(group_id)
-            if not url:
-                yield event.plain_result("当前群未设置邀请码链接")
-                return
-            code = await fetch_invitation_code(url)
-            yield event.plain_result(code)
+        code = await fetch_invitation_code(url)
+        yield event.plain_result(code)
 
     async def terminate(self):
         """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
